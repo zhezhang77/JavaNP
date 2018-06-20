@@ -34,7 +34,6 @@ public class ChatServerWorker implements Runnable {
 			in = new ObjectInputStream(worker.getInputStream());
 			while (true) {
 				Thread.sleep(500);
-				
 
 				ChatMsg msg;
 				// Read one msg from input stream

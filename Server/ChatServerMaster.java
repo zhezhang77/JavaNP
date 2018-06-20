@@ -32,21 +32,14 @@ public class ChatServerMaster {
 		// Create a scalable thread pool to handle connections
 		// Let the system to decide the size of thread pool
 		ExecutorService cachedThreadPool = Executors.newCachedThreadPool();
-		
-		boolean bForceQuit = false; 
+		 
 		while (true) {
 			try {
 				// When accept new connections, thread pool will arrange a new thread 
 				cachedThreadPool.execute(new ChatServerWorker(s.accept()));
 			}catch(IOException e){
 				e.printStackTrace();
-			}finally{
-				// release resources
-				cachedThreadPool.shutdownNow(); 
-				bForceQuit = true; //Force the server quit
 			}
-			
-			if (bForceQuit) break;
 		}
 	}
 }
