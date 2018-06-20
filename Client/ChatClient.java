@@ -1,6 +1,7 @@
 
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -17,7 +18,8 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Matcher;
+//import java.util.Vector;
+//import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javafx.geometry.Insets;
@@ -26,8 +28,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
+import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
+import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
@@ -40,6 +45,7 @@ import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
+//import sun.misc.BASE64Decoder;
 
 public class ChatClient extends Application {
 	private static Socket s;
@@ -52,7 +58,7 @@ public class ChatClient extends Application {
 	private TextArea listMsg, sendMsg;
 	private ListView<String> userListView;
 	private boolean msgReachEnd;
-	String ip = "", userName = "", passWord = "";
+	String ip = "127.0.0.1", userName = "", passWord = "";
 
 	// Display login window
 	private void loginScene() throws IOException {
@@ -129,45 +135,82 @@ public class ChatClient extends Application {
 	}
 
 	// Update client listbox
-	public void getUserList(String usrsList) {
-		String[] allUser = usrsList.split(",");
-		ObservableList<String> oList = FXCollections.observableArrayList(allUser);
-
+	public void getUserList(String strUsers) {
+		String[] allUser = strUsers.split("@");
+		
+		String[][] Users = new String[allUser.length][3];  
+		for (int i = 0; i < allUser.length; i++) {
+			String[] currUser = allUser[i].split(",");
+			Users[i][0] = currUser[0];
+			Users[i][1] = currUser[1];
+			Users[i][2] = currUser[2];
+		}
+		
 		// Mark offline user
 		for (int i = 0; i < this.userList.size(); ++i) {
-			// Skip Public
-			if (this.userList.get(i).equals(ChatServerMaster.strPublic))
-				continue;
-			
 			String currUserName = getUserName(this.userList.get(i));
-			
+
 			if (currUserName != null) {
+				// Skip Public
+				if (currUserName.equals(ChatServerMaster.strPublic))
+					continue;
+
 				// Check if current user is in the active list
-				if (!oList.contains(currUserName))
-					this.userList.set(i, currUserName + " (Offline)");
-				else
-					this.userList.set(i, currUserName);
+				for(int j=0;j<Users.length;j++) {
+					if (currUserName.equals(Users[j][0])) {
+						if (Users[j][1].equals("online")) {
+							this.userList.set(i, Users[j][0] + " @ " + Users[j][2]);
+						}else {
+							this.userList.set(i, Users[j][0] + " @ offline");
+						}
+					}
+				}
 			}
 		}
 
 		// Add new user 
-		for (String user : allUser) {
-			if (user != null && 
-					!this.userList.contains(user) && 
-					!this.userList.contains(user + " (!)") &&
-					!this.userList.contains(user + " (Offline)")) {
-				this.userList.add(user);
+		for(int i=0;i<Users.length;i++) {
+			if (Users[i][0] != null && 
+					!Users[i][0].equals(ChatServerMaster.strPublic) &&
+					!Users[i][0].equals(userName)) {
+				boolean bFind = false;
+				for (int j = 0; j < this.userList.size(); ++j) {
+					String strUser = getUserName(this.userList.get(j));
+					if (strUser.equals(Users[i][0])) {
+						bFind = true;
+						break;
+					}
+				}
+				if(bFind == false) {
+					if (Users[i][1].equals("online")) {
+						this.userList.add(Users[i][0] + " @ " + Users[i][2]);
+					}else {
+						this.userList.add(Users[i][0] + " @ offline");
+					}
+				}
 			}
 		}
 
 		// Mark user with unread msg
 		for (int i = 0; i < this.userList.size(); ++i) {
-			String user = getUserName(this.userList.get(i));
-			if (user != null && userMsgNotify.get(user) != null && userMsgNotify.get(user)) {
-				this.userList.set(i, user + " (!)");
+			String strOrg = this.userList.get(i);
+			Boolean bDispUnreadMsg = false;
+			if (strOrg.substring(0,2).equals("* ")) {
+				strOrg = strOrg.substring(2);
+				bDispUnreadMsg = true;
+			}
+			
+			String user = getUserName(strOrg);
+			if (user != null) {
+				if( userMsgNotify.get(user) != null && userMsgNotify.get(user)) {
+					if (bDispUnreadMsg == false)
+						this.userList.set(i, "* " + strOrg);
+				} else {
+					if (bDispUnreadMsg == true)
+						this.userList.set(i, strOrg);
+				}
 			}
 		}
-
 	}
 
 	// Push sent/received msg into screen
@@ -205,10 +248,11 @@ public class ChatClient extends Application {
 		if (user == null)
 			return null;
 
-		Pattern p = Pattern.compile("([\\w\\d]+)( \\((\\*|Offline)\\))?");
-		Matcher m = p.matcher(user);
-		m.find();
-		return m.group(1);
+		if (user.substring(0, 2).equals("* "))
+			user = user.substring(2);
+		
+		String[] subString = user.split(" @ ");
+		return subString[0];
 	}
 
 	// Check if the user is offline
@@ -216,10 +260,14 @@ public class ChatClient extends Application {
 		if (user == null)
 			return false;
 
-		Pattern p = Pattern.compile("([\\w\\d]+)( \\((\\*|Offline)\\))?");
-		Matcher m = p.matcher(user);
-		m.find();
-		return m.group(3) != null && m.group(3).equals("Offline");
+		String[] subString = user.split(" @ ");
+		if (subString[0].equals("Public")) {
+			return false;
+		}else if (subString.length > 1 && subString[1] != null && subString[1].subSequence(0, 7).equals("offline")) {
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	// Send msg
@@ -308,6 +356,38 @@ public class ChatClient extends Application {
 					}
 				});
 
+		/*
+		userListView.setCellFactory(lv -> {
+
+            ListCell<String> cell = new ListCell<>();
+
+            ContextMenu contextMenu = new ContextMenu();
+
+
+            MenuItem editItem = new MenuItem();
+            editItem.textProperty().bind(Bindings.format("Edit \"%s\"", cell.itemProperty()));
+            editItem.setOnAction(event -> {
+                String item = cell.getItem();
+                // code to edit item...
+            });
+            MenuItem deleteItem = new MenuItem();
+            deleteItem.textProperty().bind(Bindings.format("Delete \"%s\"", cell.itemProperty()));
+            deleteItem.setOnAction(event -> userListView.getItems().remove(cell.getItem()));
+            contextMenu.getItems().addAll(editItem, deleteItem);
+
+            cell.textProperty().bind(cell.itemProperty());
+
+            cell.emptyProperty().addListener((obs, wasEmpty, isNowEmpty) -> {
+                if (isNowEmpty) {
+                    cell.setContextMenu(null);
+                } else {
+                    cell.setContextMenu(contextMenu);
+                }
+            });
+            return cell ;
+        });
+		*/
+		
 		// Handle send button
 		btn.setOnAction(new EventHandler<ActionEvent>() {
 			@Override
@@ -322,6 +402,7 @@ public class ChatClient extends Application {
 			public void handle(KeyEvent keyEvent) {
 				if (keyEvent.getCode() == KeyCode.ENTER) {
 					sendMsg();
+					keyEvent.consume();
 				}
 			}
 		});

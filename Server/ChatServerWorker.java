@@ -88,6 +88,9 @@ public class ChatServerWorker extends Thread {
 		if ((toUserId = Users.indexOf(new ChatUser(msg.msgSend))) != -1) {
 			if (Users.get(toUserId).getPass().equals(msg.msgRecv)) {
 				// Password Match
+				this.userName = msg.msgSend;
+				Users.get(toUserId).setStatus("online");
+				Users.get(toUserId).setIP(this.worker.getInetAddress().getHostAddress());
 				return true;
 			} else {
 				msg.msgLoad = "Password not match";
@@ -96,21 +99,28 @@ public class ChatServerWorker extends Thread {
 		} else {
 			// Create new user
 			this.userName = msg.msgSend;
-			Users.add(new ChatUser(this.userName));
+			ChatUser newUser = new ChatUser(this.userName);
+			newUser.setPass(msg.msgRecv);
+			newUser.setStatus("online");
+			newUser.setIP(this.worker.getInetAddress().getHostAddress());
+			Users.add(newUser);
 			return true;
 		}
 	}
 
 	// send user list
 	public void getUsers() {
-		String usrs = "";
-		for (ChatUser usr : Users) {
-			if (!usr.equals(thisUser())) {
-				usrs += usr.getName() + ",";
+		String strUsers = "";
+		for(int i=0;i<Users.size();i++) {
+			ChatUser usr = Users.get(i);
+			if (i == 0) {
+				strUsers += usr.getName() + "," + usr.getStatus()+ "," + usr.getIP();
+			} else {
+				strUsers += "@" + usr.getName() + "," + usr.getStatus()+ "," + usr.getIP();
 			}
 		}
-
-		ChatMsg reply = new ChatMsg("USERS", "", this.userName, usrs);
+		
+		ChatMsg reply = new ChatMsg("USERS", "", this.userName, strUsers);
 		ChatMsg.sendMsg(reply, out);
 	}
 
@@ -141,7 +151,9 @@ public class ChatServerWorker extends Thread {
 			logout = true;
 			return;
 		}
-		Users.remove(new ChatUser(userName));
+		
+		// Users.remove(new ChatUser(userName));
+		Users.get(Users.indexOf(new ChatUser(userName))).setStatus("offline");
 		ChatLog.log("LOGOUT: " + this.userName);
 		this.userName = null;
 		logout = true;
@@ -169,9 +181,9 @@ public class ChatServerWorker extends Thread {
 		} else if (msg.msgType.equalsIgnoreCase("SEND")) {
 			String toUser = msg.msgRecv;
 			if (send(toUser, msg.msgLoad))
-				ChatLog.log(String.format("Success: %s send to %s", thisUser().getName(), toUser));
+				ChatLog.log(String.format("Success: %s send to %s", userName, toUser));
 			else
-				ChatLog.log(String.format("Failed: %s send to %s", thisUser().getName(), toUser));
+				ChatLog.log(String.format("Failed: %s send to %s", userName, toUser));
 		} else if (msg.msgType.equalsIgnoreCase("LOGOUT")) {
 			logout();
 		} else if (msg.msgType.equalsIgnoreCase("GETUSRS")) {

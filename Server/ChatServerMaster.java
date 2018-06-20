@@ -11,7 +11,11 @@ public class ChatServerMaster {
 
 	public void boot() {
 		Users = new Vector<ChatUser>();
-		Users.add(new ChatUser(strPublic)); //Add user "Public"
+		ChatUser userPublic = new ChatUser(strPublic);
+		userPublic.setStatus("online");
+		userPublic.setPass("");
+		userPublic.setIP("0.0.0.0");
+		Users.add(userPublic); //Add user "Public"
 		try {
 			s = new ServerSocket(port);
 		} catch (IOException e) {

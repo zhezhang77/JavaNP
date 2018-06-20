@@ -1,9 +1,12 @@
+//import java.io.Serializable;
 import java.util.Vector;
 
 // store user info
-public class ChatUser {
+public class ChatUser{
 	private String userName;
 	private String passWord;
+	private String ip;
+	private String status;
 
 	// use Vector to store received msg 
 	private Vector<ChatMsg> message;
@@ -20,7 +23,27 @@ public class ChatUser {
 	public String getPass() {
 		return passWord;
 	}
+	
+	public void setPass(String strPass) {
+		passWord = strPass;
+	}
 
+	public String getIP() {
+		return ip;
+	}
+	
+	public void setIP(String strIP) {
+		ip = strIP;
+	}
+	
+	public String getStatus() {
+		return status;
+	}
+	
+	public void setStatus(String strStatus) {
+		status = strStatus;
+	}
+	
 	public void sendMsg(String sender, String msg) {
 		ChatMsg reply = new ChatMsg("FROM", sender, userName, msg);
 		message.add(reply);
@@ -43,5 +66,12 @@ public class ChatUser {
 		if (u == null || u.userName == null || this.userName == null)
 			return false;
 		return this.userName.equalsIgnoreCase(u.userName);
+	}
+	
+	// only username, ip and ststus will be serialized and transfered
+	@Override
+	public String toString() {
+		return "{\'userNmae\'=\'" + userName + "\', \'ip\'=\'" + ip + 
+				"\'," + "\'status\'=\'" + status + "\'}";
 	}
 }
