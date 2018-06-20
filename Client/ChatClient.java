@@ -1,7 +1,7 @@
 
 import javafx.application.Application;
 import javafx.application.Platform;
-import javafx.beans.binding.Bindings;
+//import javafx.beans.binding.Bindings;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
@@ -28,11 +28,11 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.Button;
-import javafx.scene.control.ContextMenu;
+//import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListCell;
+//import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
-import javafx.scene.control.MenuItem;
+//import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.input.KeyCode;
@@ -120,6 +120,7 @@ public class ChatClient extends Application {
 				userName = userNameTextField.getText();
 				passWord = passWordTextField.getText();
 				
+				// Send username and password to the server
 				if (checkLogin()) {
 					// Login success, goto main window
 					grid.getChildren().clear();
@@ -134,7 +135,7 @@ public class ChatClient extends Application {
 		});
 	}
 
-	// Update client listbox
+	// Update client list by the data from server
 	public void getUserList(String strUsers) {
 		String[] allUser = strUsers.split("@");
 		
@@ -151,11 +152,13 @@ public class ChatClient extends Application {
 			String currUserName = getUserName(this.userList.get(i));
 
 			if (currUserName != null) {
-				// Skip Public
+				// Skip "Public"
 				if (currUserName.equals(ChatServerMaster.strPublic))
 					continue;
 
-				// Check if current user is in the active list
+				// Check the status of user
+				// Add IP after name if online
+				// Add "offline" after name if offline
 				for(int j=0;j<Users.length;j++) {
 					if (currUserName.equals(Users[j][0])) {
 						if (Users[j][1].equals("online")) {
@@ -168,7 +171,7 @@ public class ChatClient extends Application {
 			}
 		}
 
-		// Add new user 
+		// Add new user to the end of the list
 		for(int i=0;i<Users.length;i++) {
 			if (Users[i][0] != null && 
 					!Users[i][0].equals(ChatServerMaster.strPublic) &&
@@ -191,7 +194,7 @@ public class ChatClient extends Application {
 			}
 		}
 
-		// Mark user with unread msg
+		// Mark user with "*" when received new msg 
 		for (int i = 0; i < this.userList.size(); ++i) {
 			String strOrg = this.userList.get(i);
 			Boolean bDispUnreadMsg = false;
@@ -222,28 +225,33 @@ public class ChatClient extends Application {
 		if (all)
 			sender = ChatServerMaster.strPublic;
 
+		// Add received msg into msg queue
 		if (userMsg.get(sender) == null)
 			userMsg.put(sender, strMsg);
 		else
 			userMsg.put(sender, userMsg.get(sender) + strMsg);
 		
-		// Notify user with unread msg
+		// Add sender to the notify list
 		userMsgNotify.put(sender, true);
 	}
 
+	// Parse received msg
 	public void parse(ChatMsg cmd) {
 		if (cmd.msgType.equals("USERS")) {
-			getUserList(cmd.msgLoad); // Get user list 
+			// Server return user list
+			getUserList(cmd.msgLoad); 
 		} else if (cmd.msgType.equals("FROMPUB")) {
+			// Server send a publish msg
 			String sender = cmd.msgSend;
-			storeMsg(sender, cmd.msgLoad, true); // Get public msg
+			storeMsg(sender, cmd.msgLoad, true);
 		} else if (cmd.msgType.equals("FROM")) {
+			// Server send a private message
 			String sender = cmd.msgSend;
-			storeMsg(sender, cmd.msgLoad, false); // Get private msg
+			storeMsg(sender, cmd.msgLoad, false);
 		}
 	}
 
-	// Remove suffix of username 
+	// Remove prefix and suffix of username 
 	private String getUserName(String user) {
 		if (user == null)
 			return null;
@@ -255,7 +263,7 @@ public class ChatClient extends Application {
 		return subString[0];
 	}
 
-	// Check if the user is offline
+	// Check if the user is offline from the displayed name
 	private boolean isOffline(String user) {
 		if (user == null)
 			return false;
@@ -270,7 +278,7 @@ public class ChatClient extends Application {
 		}
 	}
 
-	// Send msg
+	// Send msg to server
 	private void sendMsg() {
 		String currUser = getUserName(userListView.getSelectionModel().getSelectedItem());
 		if (sendMsg.getText() != null && !Pattern.matches("\\n*", sendMsg.getText())) {
@@ -296,7 +304,9 @@ public class ChatClient extends Application {
 
 	// Main window
 	private void chatScene() {
+		// Store msg list for each user 
 		userMsg = new HashMap<String, String>();
+		// Store new message status for each user
 		userMsgNotify = new HashMap<String, Boolean>();
 		// Monitor public msg
 		userList = FXCollections.observableArrayList(ChatServerMaster.strPublic);
@@ -308,14 +318,16 @@ public class ChatClient extends Application {
 		grid.setVgap(10);
 		grid.setPadding(new Insets(25, 25, 25, 25));
 
+		// User list
 		userListView = new ListView<>(userList);
 		userListView.setItems(userList);
-		userListView.getSelectionModel().select(0);
-
+		userListView.getSelectionModel().select(0); // select "Public" as default
+		
 		VBox userListBox = new VBox();
 		VBox.setVgrow(userListView, Priority.ALWAYS);
 		userListBox.getChildren().addAll(userListView);
 
+		// Msg box and input box
 		VBox sendBox = new VBox();
 		listMsg = new TextArea();
 		sendMsg = new TextArea();
@@ -328,12 +340,14 @@ public class ChatClient extends Application {
 		sendBox.getChildren().add(listMsg);
 		sendBox.getChildren().add(sendMsg);
 
+		// Send button
 		Button btn = new Button("Send");
 		HBox hbBtn = new HBox(0);
 		hbBtn.setAlignment(Pos.BOTTOM_RIGHT);
 		hbBtn.getChildren().add(btn);
 		sendBox.getChildren().add(hbBtn);
 
+		// Add all element in to main scene
 		grid.add(userListBox, 0, 0);
 		grid.add(sendBox, 1, 0);
 		Scene scene = new Scene(grid);
@@ -342,51 +356,19 @@ public class ChatClient extends Application {
 		// When selected new user, switch the content of msg area
 		userListView.getSelectionModel().selectedItemProperty()
 				.addListener((ObservableValue<? extends String> ov, String old_val, String new_val) -> {
-					String oldV = getUserName(old_val);
-					String newV = getUserName(new_val);
+					String old_user = getUserName(old_val);
+					String new_user = getUserName(new_val);
 
-					if (!oldV.equals(newV)) {
-						if (userMsg.get(newV) != null) {
-							listMsg.setText(userMsg.get(newV));
-							userMsgNotify.put(newV, false);
+					if (!old_user.equals(new_user)) {
+						if (userMsg.get(new_user) != null) {
+							listMsg.setText(userMsg.get(new_user));
+							userMsgNotify.put(new_user, false);
 							msgReachEnd = true;
 						} else {
 							listMsg.setText("");
 						}
 					}
 				});
-
-		/*
-		userListView.setCellFactory(lv -> {
-
-            ListCell<String> cell = new ListCell<>();
-
-            ContextMenu contextMenu = new ContextMenu();
-
-
-            MenuItem editItem = new MenuItem();
-            editItem.textProperty().bind(Bindings.format("Edit \"%s\"", cell.itemProperty()));
-            editItem.setOnAction(event -> {
-                String item = cell.getItem();
-                // code to edit item...
-            });
-            MenuItem deleteItem = new MenuItem();
-            deleteItem.textProperty().bind(Bindings.format("Delete \"%s\"", cell.itemProperty()));
-            deleteItem.setOnAction(event -> userListView.getItems().remove(cell.getItem()));
-            contextMenu.getItems().addAll(editItem, deleteItem);
-
-            cell.textProperty().bind(cell.itemProperty());
-
-            cell.emptyProperty().addListener((obs, wasEmpty, isNowEmpty) -> {
-                if (isNowEmpty) {
-                    cell.setContextMenu(null);
-                } else {
-                    cell.setContextMenu(contextMenu);
-                }
-            });
-            return cell ;
-        });
-		*/
 		
 		// Handle send button
 		btn.setOnAction(new EventHandler<ActionEvent>() {
@@ -407,14 +389,15 @@ public class ChatClient extends Application {
 			}
 		});
 
-		// Create new thread to refresh user list
+		// Create new thread to refresh user list per second
 		Task<Void> task = new Task<Void>() {
 			@Override
 			public Void call() throws Exception {
 				while (out != null && in != null) {
 					try {
-						Thread.sleep(300);
-
+						Thread.sleep(1000);
+						
+						// Ask server for user list
 						ChatMsg msg = new ChatMsg("GETUSRS", "", "", "");
 						ChatMsg.sendMsg(msg, out);
 
@@ -425,12 +408,15 @@ public class ChatClient extends Application {
 						Platform.runLater(new Runnable() {
 							@Override
 							public void run() {
+								// parse server's response
 								parse(cmd);
+								
 								if (msgReachEnd) {
 									listMsg.setScrollTop(Double.MAX_VALUE);
 									msgReachEnd = false;
 								}
 
+								// Disable input area when receiver is offline 
 								int curUsrId = userListView.getSelectionModel().getSelectedIndex();
 								String curUsr = getUserName(userListView.getSelectionModel().getSelectedItem());
 
@@ -442,6 +428,7 @@ public class ChatClient extends Application {
 									btn.setDisable(false);
 								}
 
+								// Remove user from unread msg list
 								if (userMsgNotify.get(curUsr) != null && userMsgNotify.get(curUsr)) {
 									userMsgNotify.put(curUsr, false);
 									userList.set(curUsrId, curUsr);
@@ -464,7 +451,7 @@ public class ChatClient extends Application {
 			}
 		};
 		Thread th = new Thread(task);
-		th.setDaemon(true);
+		th.setDaemon(true); // Set thread to daemon mode
 		th.start();
 	}
 
@@ -473,6 +460,7 @@ public class ChatClient extends Application {
 		Alert alert = new Alert(AlertType.ERROR);
 
 		try {
+			// Connect server and send the username and password
 			s = new Socket(ip, ChatServerMaster.port);
 			out = new ObjectOutputStream(s.getOutputStream());
 			ChatMsg msg = new ChatMsg("LOGIN", userName, passWord, "");
@@ -480,7 +468,8 @@ public class ChatClient extends Application {
 
 			in = new ObjectInputStream(s.getInputStream());
 			ChatMsg reply = (ChatMsg) in.readObject();
-
+			
+			// Check response
 			if (reply.msgType.equals("OK"))
 				return true;
 			else

@@ -4,14 +4,18 @@ import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.util.Vector;
 
-// worker thread
-public class ChatServerWorker extends Thread {
+// Server worker thread
+public class ChatServerWorker implements Runnable {
+	// Socket to connect server and client
 	private Socket worker;
 	private String userName;
 	
+	// Use object stream to transfer serializable object 
 	public ObjectInputStream in;
 	public ObjectOutputStream out;
 
+	// Vector is thread-safe container
+	// Every threads share the same vector of user info
 	private static Vector<ChatUser> Users;
 	private boolean logout;
 
@@ -23,26 +27,30 @@ public class ChatServerWorker extends Thread {
 	public void run() {
 		ChatLog.log("WORKER START: " + Thread.currentThread().getId());
 		Users = ChatServerMaster.Users;
+		
 		try {
+			// Server would create output stream first to avoid deadlock with client 
 			out = new ObjectOutputStream(worker.getOutputStream());
 			in = new ObjectInputStream(worker.getInputStream());
 			while (true) {
 				Thread.sleep(500);
 				
-				// parse received msg
+
 				ChatMsg msg;
+				// Read one msg from input stream
 				msg = (ChatMsg) in.readObject();
-				// TalkLog.log("RECV: " + cmd.toString());//debug
+				// Parse received msg
 				parse(msg);
 
+				// Quit the worker loop when something wrong or use logout
 				if (logout)
 					break;
 
-				// send queued message to client
+				// Send queued message to client
 				sendMsg();
 			}
 		} catch (IOException e) {
-			e.printStackTrace();
+			// e.printStackTrace();
 			logout();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
@@ -52,24 +60,26 @@ public class ChatServerWorker extends Thread {
 			logout();
 		}
 
-		// quit worker
+		// quit worker, release resources
 		try {
 			in.close();
 			out.close();
 			worker.close();
 		} catch (IOException e) {
-
-			e.printStackTrace();
+			// e.printStackTrace();
 		}
+		
 		ChatLog.log("WORKER END: " + Thread.currentThread().getId());
 	}
 
+	// Get current user object
 	private ChatUser thisUser() {
 		if (this.userName == null)
 			return null;
 		return Users.get(Users.indexOf(new ChatUser(userName)));
 	}
 
+	// Send out msgs in the queue
 	public void sendMsg() {
 		if (userName == null)
 			return;
@@ -79,13 +89,14 @@ public class ChatServerWorker extends Thread {
 		}
 	}
 
-	// check username/password
+	// User login, check username/password
 	public boolean login(ChatMsg msg) {
-		if (this.userName != null)
+		if (this.userName != null) // Prevent redundant login
 			return false;
 
 		int toUserId;
 		if ((toUserId = Users.indexOf(new ChatUser(msg.msgSend))) != -1) {
+			// Old user login, check the password
 			if (Users.get(toUserId).getPass().equals(msg.msgRecv)) {
 				// Password Match
 				this.userName = msg.msgSend;
@@ -93,11 +104,12 @@ public class ChatServerWorker extends Thread {
 				Users.get(toUserId).setIP(this.worker.getInetAddress().getHostAddress());
 				return true;
 			} else {
+				// Password wrong
 				msg.msgLoad = "Password not match";
 				return false;
 			}
 		} else {
-			// Create new user
+			// New user login, create new record
 			this.userName = msg.msgSend;
 			ChatUser newUser = new ChatUser(this.userName);
 			newUser.setPass(msg.msgRecv);
@@ -108,8 +120,10 @@ public class ChatServerWorker extends Thread {
 		}
 	}
 
-	// send user list
+	// Send user list
 	public void getUsers() {
+		// Each user info is a string like "username,status,ip"
+		// Whole user list like "user_info_1@user_info_2@user_info_3@..."
 		String strUsers = "";
 		for(int i=0;i<Users.size();i++) {
 			ChatUser usr = Users.get(i);
@@ -120,39 +134,43 @@ public class ChatServerWorker extends Thread {
 			}
 		}
 		
+		// Send the list back with msg type USERS
 		ChatMsg reply = new ChatMsg("USERS", "", this.userName, strUsers);
 		ChatMsg.sendMsg(reply, out);
 	}
 
-	// send msg to specific user
+	// Send msg to specific user
 	public boolean send(String userName, String msg) {
 		int receiverId;
+		// Find the ID of receiver by name
 		if ((receiverId = Users.indexOf(new ChatUser(userName))) != -1) {
-			if (Users.get(receiverId).getName().equalsIgnoreCase(ChatServerMaster.strPublic))
-				// publish msg to every user
+			if (Users.get(receiverId).getName().equalsIgnoreCase(ChatServerMaster.strPublic)) {
+				// if receiver is "Publish", msg is user->Public
 				for (int i = receiverId + 1; i < Users.size(); ++i) {
 					if (i != Users.indexOf(thisUser()))
 						Users.get(i).sendPubMsg(this.userName, msg);
 				}
-			else if (userName.equals(this.userName))
-				// send msg to public
+			} else if (userName.equals(this.userName)) {
+				// if receive is user itself, msg is Public->user
 				Users.get(receiverId).sendMsg(ChatServerMaster.strPublic, msg);
-			else
+			} else {
 				// send private msg
 				Users.get(receiverId).sendMsg(this.userName, msg);
+			}
 			return true;
-		} else
+		} else {
 			return false;
+		}
 	}
 
-	// send logout msg
+	// send logout command
 	public void logout() {
 		if (userName == null) {
 			logout = true;
 			return;
 		}
 		
-		// Users.remove(new ChatUser(userName));
+		// mark user as offline when logout
 		Users.get(Users.indexOf(new ChatUser(userName))).setStatus("offline");
 		ChatLog.log("LOGOUT: " + this.userName);
 		this.userName = null;
@@ -160,14 +178,15 @@ public class ChatServerWorker extends Thread {
 		return;
 	}
 
-	// parse msg
+	// parse msg send from user
 	public void parse(ChatMsg cmd) {
 		if (cmd == null)
 			return;
 
 		ChatMsg msg = (ChatMsg) cmd;
-
+		
 		if (msg.msgType.equalsIgnoreCase("LOGIN")) {
+			// User login
 			if (login(msg)) {
 
 				ChatMsg reply = new ChatMsg("OK", "", "", "");
@@ -179,14 +198,17 @@ public class ChatServerWorker extends Thread {
 				ChatLog.log("LOGIN FAILD: " + msg.msgSend);
 			}
 		} else if (msg.msgType.equalsIgnoreCase("SEND")) {
+			// User send msg
 			String toUser = msg.msgRecv;
 			if (send(toUser, msg.msgLoad))
 				ChatLog.log(String.format("Success: %s send to %s", userName, toUser));
 			else
 				ChatLog.log(String.format("Failed: %s send to %s", userName, toUser));
 		} else if (msg.msgType.equalsIgnoreCase("LOGOUT")) {
+			// User logout
 			logout();
 		} else if (msg.msgType.equalsIgnoreCase("GETUSRS")) {
+			// User ask for the list of all users
 			getUsers();
 		} else {
 			ChatLog.log("Unknown Msg: " + msg.msgType);

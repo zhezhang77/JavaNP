@@ -2,7 +2,7 @@ import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
-// msg class which could be serialized to transfer through ObjectStream
+// Msg class which could be serialized to transfer through ObjectStream
 public class ChatMsg implements Serializable {
 	private static final long serialVersionUID = 7924951247387843168L;
 
@@ -24,6 +24,7 @@ public class ChatMsg implements Serializable {
 				"\'," + "\'msgRecv\'=\'" + msgRecv + "\', \'msgLoad\'=\'" + msgLoad + "\'}";
 	}
 
+	// Send the message through ObjectOutputStream
 	public static void sendMsg(ChatMsg msg, ObjectOutputStream out) {
 		try {
 			out.writeObject(msg);
